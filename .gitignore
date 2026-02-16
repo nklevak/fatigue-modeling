@@ -1,10 +1,37 @@
-# Python-generated files
-__pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
 
-# Virtual environments
-.venv
+# Python bytecode
+
+__pycache__/
+
+*.py[cod]
+
+*.class
+
+
+
+# Environments
+
+.venv/
+
+env/
+
+venv/
+
+ENV/
+
+
+
+# Data and Logs
+
+*.log
+
+results/
+
+
+
+# OS-specific
+
+.DS_Store
+
+Thumbs.db
+
