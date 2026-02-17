@@ -7,7 +7,7 @@ Predicting **rest length** (1–20 trials) at every epoch from task performance 
 - **Original dataset:** `cleaned_exp_data/original_main_trials_cleaned.csv` (84 subjects × 30 epochs); blockwise epoch-level: `original_blockwise_cleaned.csv`
 - **Replication dataset:** `cleaned_exp_data/replication_main_trials_cleaned.csv` (103 subjects × 30 epochs); blockwise epoch-level: `replication_blockwise_cleaned.csv`
 
-The modeling pipeline uses the **blockwise** files (`original_blockwise_cleaned.csv`, `replication_blockwise_cleaned.csv`) to get epoch-level variables: accuracy, RT, game type, rest_type, cue_transition_type, cue_type, and rest length (target).
+The modeling pipeline uses the **blockwise** files (`original_blockwise_cleaned.csv`, `replication_blockwise_cleaned.csv`) to get epoch-level variables: accuracy, RT, game type, rest_type, cue_transition_type (3-level: stay_within_block, stay_between_block, switch_between_block), cue_type, and rest length (target).
 
 Target to predict: rest length chosen *after* each epoch (proxy for cognitive fatigue) for each subject over the course of the experiment.
 
