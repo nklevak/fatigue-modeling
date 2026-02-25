@@ -118,10 +118,29 @@ def load_replication() -> pd.DataFrame:
     df["dataset"] = "replication"
     return df
 
+def _get_num_timeouts_per_epoch() -> pd.DataFrame:
+    """Number of timed-out trials per (subject_id, epoch_num), main-response trials only."""
+    orig = load_original_trials()
+    rep = load_replication_trials()
+    orig = _assign_epoch_num_original(orig)
+    if "epoch_num" in rep.columns:
+        rep = rep.copy()
+        rep["epoch_num"] = rep.groupby("subject_id")["epoch_num"].ffill().bfill().fillna(1).astype(int)
+    both = pd.concat([orig, rep], ignore_index=True)
+    main = both[both["trial_type"].isin(MAIN_RESPONSE_TRIAL_TYPES)].copy()
+    if "timed_out" not in main.columns:
+        out = main.groupby(["subject_id", "epoch_num"], as_index=False).size()
+        out["num_timeouts"] = 0
+        return out[["subject_id", "epoch_num", "num_timeouts"]]
+    timed_out = main["timed_out"].astype(str).str.strip().str.lower().isin(("true", "1", "1.0"))
+    main["_timed_out"] = timed_out.astype(int)
+    return main.groupby(["subject_id", "epoch_num"], as_index=False)["_timed_out"].sum().rename(columns={"_timed_out": "num_timeouts"})
+
 def get_epoch_table() -> pd.DataFrame:
     """
     Build a single epoch-level table from both blockwise files.
-    Includes rest_length (target) = num_rest_in_chunk, and all blockwise variables.
+    Includes rest_length (target) = num_rest_in_chunk, all blockwise variables,
+    and num_timeouts (from trial-level, main-response only).
     """
     orig = load_original()
     rep = load_replication()
@@ -130,10 +149,14 @@ def get_epoch_table() -> pd.DataFrame:
     # Composite subject ID so original and replication never share identity (e.g. subj_id 14 in both are different people)
     df["subject_id"] = df["dataset"].astype(str) + "_" + df["subj_id"].astype(str)
     df = df.sort_values(["dataset", "subj_id", "epoch_num"]).reset_index(drop=True)
+    timeouts = _get_num_timeouts_per_epoch()
+    df = df.merge(timeouts, on=["subject_id", "epoch_num"], how="left")
+    df["num_timeouts"] = df["num_timeouts"].fillna(0).astype(int)
     return df
 
 def add_baseline_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Add baseline model features: epoch/block, accuracy, rt, game_type (one-hot), cue_transition_type (3-level dummies)."""
+    """Add baseline model features: epoch/block, avg accuracy, accuracy sd, avg rt, rt variability,
+    game_type (one-hot), cue_transition_type (3-level dummies), block_num."""
     out = df.copy()
     # Cue transition type: 3-level (stay_within_block, stay_between_block, switch_between_block); reference = stay_within_block
     ctt = out["cue_transition_type"].astype(str).str.strip().str.lower()
@@ -143,8 +166,24 @@ def add_baseline_features(df: pd.DataFrame) -> pd.DataFrame:
     gt = out["game_type"].astype(str).str.strip().str.lower()
     out["game_type_digit_span"] = (gt == "digit_span").astype(int)
     out["game_type_spatial_recall"] = (gt == "spatial_recall").astype(int)
-    # avg_rt can be NA in blockwise when there are no valid RTs (e.g. 0% accuracy epoch);
-    # we do not impute here—use dropna(subset=baseline_cols) or equivalent downstream if needed.
+    # Blockwise columns: accuracy_sd and rt_sd (per-epoch variability); block_num
+    if "accuracy_sd" in out.columns:
+        out["accuracy_sd"] = out["accuracy_sd"].fillna(0)
+    if "rt_sd" in out.columns:
+        out["rt_sd"] = out["rt_sd"].fillna(0)
+    if "block_num" in out.columns:
+        out["block_num"] = out["block_num"].fillna(1).astype(int)
+    # num_timeouts is already in out (from get_epoch_table); ensure int
+    if "num_timeouts" in out.columns:
+        out["num_timeouts"] = out["num_timeouts"].fillna(0).astype(int)
+    # Impute avg_rt with max when NA (e.g. all timeouts in epoch)
+    if out["avg_rt"].isna().any():
+        out["avg_rt"] = out["avg_rt"].fillna(out["avg_rt"].max())
+    # Leave-one-out mean rest length per subject (avoids leakage: don't use current epoch's target)
+    g = out.groupby("subject_id")["rest_length"]
+    total = g.transform("sum") - out["rest_length"]
+    n = g.transform("count") - 1
+    out["mean_rest_length_subj"] = total / n.replace(0, np.nan)
     return out
 
 
@@ -158,21 +197,29 @@ def add_history_features(df: pd.DataFrame) -> pd.DataFrame:
     if "game_type_digit_span" in out.columns and "game_type_spatial_recall" in out.columns:
         out["game_type_digit_span_prev"] = g["game_type_digit_span"].shift(1)
         out["game_type_spatial_recall_prev"] = g["game_type_spatial_recall"].shift(1)
+        out["previous_cue_stay_between_block"] = g["cue_stay_between_block"].shift(1)
+        out["previous_cue_switch_between_block"] = g["cue_switch_between_block"].shift(1)
+        out["previous_num_timeouts"] = g["num_timeouts"].shift(1)
+        out["previous_avg_rt"] = g["avg_rt"].shift(1)
     return out
 
 
 def get_feature_columns(baseline_only: bool = False) -> List[str]:
     """Column names to use as model features. baseline_only=False adds history columns."""
-    # cue_transition_type 3-level: stay_within_block (reference, both cue_* = 0), stay_between_block (cue_stay_between_block=1), switch_between_block (cue_switch_between_block=1)
+    # cue_transition_type 3-level dummies (stay_within_block = reference)
     baseline = [
         "epoch_num",
-        # "block_num",
+        "block_num",
         "avg_epoch_accuracy",
+        "accuracy_sd",
         "avg_rt",
+        "rt_sd",
+        "num_timeouts",
         "game_type_digit_span",
         "game_type_spatial_recall",
         "cue_stay_between_block",
         "cue_switch_between_block",
+        "mean_rest_length_subj",
     ]
     if baseline_only:
         return baseline
