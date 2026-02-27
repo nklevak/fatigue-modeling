@@ -283,6 +283,16 @@ def run_one_config(
         "ridge_extended_r2": r2_score(y_test_e, ridge_e.predict(X_test_e)),
         "gbm_extended_mae": mean_absolute_error(y_test_e, gbm_e.predict(X_test_e_raw)),
         "gbm_extended_r2": r2_score(y_test_e, gbm_e.predict(X_test_e_raw)),
+        "ridge_alpha_baseline": ridge_alpha_baseline,
+        "ridge_alpha_extended": ridge_alpha_extended,
+        "gbm_n_baseline": gbm_n_baseline,
+        "gbm_d_baseline": gbm_d_baseline,
+        "gbm_n_extended": gbm_n_extended,
+        "gbm_d_extended": gbm_d_extended,
+        "gbm_lr_baseline": lr_b,
+        "gbm_lr_extended": lr_e,
+        "baseline_cols": list(baseline_cols),
+        "ext_cols": list(ext_cols),
     }
 
 

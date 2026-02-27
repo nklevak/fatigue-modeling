@@ -1,0 +1,28 @@
+[
+  {
+    "split": "dataset",
+    "ridge_baseline_mae": 7.355904202113836,
+    "ridge_baseline_r2": 0.02422830920529173,
+    "gbm_baseline_mae": 8.231980008188764,
+    "gbm_baseline_r2": -0.30726407898361585,
+    "ridge_extended_mae": 5.841268185719239,
+    "ridge_extended_r2": 0.38253981524151803,
+    "gbm_extended_mae": 6.364270457547235,
+    "gbm_extended_r2": 0.2848737217789994,
+    "lstm_mae": 6.220498229493893,
+    "lstm_r2": 0.25481388405383054
+  },
+  {
+    "split": "pooled",
+    "ridge_baseline_mae": 7.775769788683322,
+    "ridge_baseline_r2": 0.09806049568702102,
+    "gbm_baseline_mae": 7.971338687458641,
+    "gbm_baseline_r2": 0.03397024920850411,
+    "ridge_extended_mae": 5.790379777144598,
+    "ridge_extended_r2": 0.48135725395265927,
+    "gbm_extended_mae": 5.919340385375151,
+    "gbm_extended_r2": 0.46432118931879107,
+    "lstm_mae": 5.375450606547096,
+    "lstm_r2": 0.5309806799885739
+  }
+]

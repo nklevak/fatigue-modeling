@@ -1,0 +1,79 @@
+Metadata-Version: 2.4
+Name: fatigue-modeling
+Version: 0.1.0
+Summary: Add your description here
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: matplotlib>=3.10.8
+Requires-Dist: numpy>=2.4.2
+Requires-Dist: pandas>=3.0.0
+Requires-Dist: pillow>=12.1.1
+Requires-Dist: scipy>=1.17.0
+Requires-Dist: scikit-learn>=1.5.0
+Provides-Extra: lstm
+Requires-Dist: torch<2.5,>=2.0.0; extra == "lstm"
+Dynamic: license-file
+
+# Predicting Fatigue From Performance (CS229)
+
+Predicting **rest length** (1–20 trials) at every epoch from task performance and context, using data from two cognitive psychology experiments (the original described here (https://github.com/nklevak/CognitiveFatigue_TaskSpecificity) and its replication (https://github.com/nklevak/cf_ts_rep))
+
+## Data
+
+- **Original dataset:** `cleaned_exp_data/original_main_trials_cleaned.csv` (84 subjects × 30 epochs); blockwise epoch-level: `original_blockwise_cleaned.csv`
+- **Replication dataset:** `cleaned_exp_data/replication_main_trials_cleaned.csv` (103 subjects × 30 epochs); blockwise epoch-level: `replication_blockwise_cleaned.csv`
+
+The modeling pipeline uses the **blockwise** files (`original_blockwise_cleaned.csv`, `replication_blockwise_cleaned.csv`) to get epoch-level variables: accuracy, RT, game type, rest_type, cue_transition_type (3-level: stay_within_block, stay_between_block, switch_between_block), cue_type, and rest length (target).
+
+Target to predict: rest length chosen *after* each epoch (proxy for cognitive fatigue) for each subject over the course of the experiment.
+
+Note: the datasets differed in that the replication experiment had tighter rt requirements and a slightly smaller bonus. Potentially a result, the replication experiment had an overall reduced mean and median accuracy on each task and a different rest distribution (generally longer rests). Both have similar results with regards to the impact of performance x task switching on future performance. 
+
+## Setup
+
+```bash
+uv sync   # install dependencies
+```
+
+## Evaluation split (no mixing across subjects)
+
+We always split **by subject**: a subject’s full rest pattern (all 30 epochs) is either entirely in train or entirely in test. We never put some epochs from the same subject in train and others in test.
+
+Two options:
+
+1. **Train on original, test on replication** — all original subjects in train, all replication subjects in test.
+2. **K-fold by subject** — combine both datasets, split subjects into K folds; each fold’s subjects are held out once. Reports mean ± std of MAE and R² across folds.
+
+## Running baselines
+
+**Option 1** (train original, test replication):
+
+```bash
+uv run python scripts/run_baselines.py
+```
+
+**Option 2** (K-fold by subject; default 5-fold):
+
+```bash
+uv run python scripts/run_baselines.py --split subject
+uv run python scripts/run_baselines.py --split subject --n_folds 10   # 10-fold
+```
+
+Output: MAE and R² (mean ± std when using `--split subject`) for Ridge and Gradient Boosting, with baseline features only and with history features (rest_length_prev, accuracy_prev, rt_prev). Cue (switch vs stay) and other variables come from the blockwise files.
+
+## Project plan
+
+See **[PROJECT_PLAN.md](PROJECT_PLAN.md)** for:
+
+- Data and target definition
+- Feature lists (baseline vs extended)
+- Methods (ridge, GBM, LSTM, k-means)
+- Evaluation (MAE, R², distributions, Wasserstein)
+- Suggested file structure and implementation order
+
+## Code layout
+
+- **`src/preprocess.py`** – loads blockwise CSVs → epoch-level table → baseline features (incl. cue from blockwise) → history features. Use `get_data()` for the full table and `get_feature_columns()` for model inputs.
+- **`src/split.py`** – train/val splits by dataset or k-fold by subject (no mixing epochs across subjects).
+- **`scripts/run_baselines.py`** – runs Ridge + GBM (baseline and extended features), prints MAE and R².
