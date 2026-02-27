@@ -345,7 +345,7 @@ def main() -> None:
         return f"{a.mean():.4f} ± {a.std():.4f}"
 
     parser = argparse.ArgumentParser(description="Run baseline fatigue prediction models (dataset + pooled splits)")
-    parser.add_argument("--n_folds", type=int, default=10, help="K-fold CV on training set (default 10)")
+    parser.add_argument("--n_folds", type=int, default=15, help="K-fold CV on training set (default 15)")
     parser.add_argument("--test_frac", type=float, default=0.1, help="Test fraction for pooled split (default 0.1 → 90/10)")
     parser.add_argument("--alphas", type=str, default="0.01,0.05,0.1,0.5,1,10,20,100", help="Comma-separated alphas for Ridge tuning")
     parser.add_argument("--gbm-n-estimators", type=str, default="100,200,500", help="Comma-separated n_estimators for GBM tune")
@@ -364,11 +364,9 @@ def main() -> None:
     # One preprocessing pipeline
     print("Loading and building features...")
     df = get_data()
-    baseline_cols = get_feature_columns(baseline_only=True)
-    ext_cols = get_feature_columns(baseline_only=False)
     # Complete cases only for extended (history has NA at first epoch); baseline has no NA after imputation
-    df_baseline = df.dropna(subset=baseline_cols)
-    df_extended = df.dropna(subset=ext_cols)
+    df_baseline = df.dropna(subset=get_feature_columns(baseline_only=True))
+    df_extended = df.dropna(subset=get_feature_columns(baseline_only=False))
 
     n_folds = args.n_folds
     test_frac = args.test_frac
@@ -376,6 +374,9 @@ def main() -> None:
     results = []
     for split in ["dataset", "pooled"]:
         print(f"--- Split: {split} ---")
+        include_dataset = split == "pooled"
+        baseline_cols = get_feature_columns(baseline_only=True, include_dataset=include_dataset)
+        ext_cols = get_feature_columns(baseline_only=False, include_dataset=include_dataset)
         save_split_path = None
         if args.save_split:
             p = Path(args.save_split)

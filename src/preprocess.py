@@ -179,11 +179,45 @@ def add_baseline_features(df: pd.DataFrame) -> pd.DataFrame:
     # Impute avg_rt with max when NA (e.g. all timeouts in epoch)
     if out["avg_rt"].isna().any():
         out["avg_rt"] = out["avg_rt"].fillna(out["avg_rt"].max())
+    # Cumulative rest trials prior to this epoch (within subject)
+    out["rests_taken_so_far"] = (
+        out.groupby("subject_id")["rest_length"]
+        .transform(lambda x: x.shift(1).cumsum().fillna(0))
+        .astype(float)
+    )
     # Leave-one-out mean rest length per subject (avoids leakage: don't use current epoch's target)
     g = out.groupby("subject_id")["rest_length"]
     total = g.transform("sum") - out["rest_length"]
     n = g.transform("count") - 1
     out["mean_rest_length_subj"] = total / n.replace(0, np.nan)
+    # Dataset dummy (used only for pooled split: 1=replication, 0=original)
+    out["dataset_replication"] = (out["dataset"] == "replication").astype(int)
+    return out
+
+
+def add_cumulative_accuracy_by_game(df: pd.DataFrame) -> pd.DataFrame:
+    """Add avg_accuracy_until_now_digit_span and avg_accuracy_until_now_spatial_recall:
+    mean accuracy in all previous epochs (within subject) for that game type. Excludes current epoch.
+    When no previous epochs of that game exist, fill with 0.5 (chance)."""
+    out = df.copy()
+    gt = out["game_type"].astype(str).str.strip().str.lower()
+    ds_vals = []
+    sr_vals = []
+    for sid in out["subject_id"].unique():
+        mask = out["subject_id"] == sid
+        grp = out.loc[mask].sort_values("epoch_num")
+        for i in range(len(grp)):
+            prev = grp.iloc[:i]
+            ds_prev = prev[gt.loc[prev.index] == "digit_span"]
+            sr_prev = prev[gt.loc[prev.index] == "spatial_recall"]
+            mean_ds = float(ds_prev["avg_epoch_accuracy"].mean()) if len(ds_prev) > 0 else 0.5
+            mean_sr = float(sr_prev["avg_epoch_accuracy"].mean()) if len(sr_prev) > 0 else 0.5
+            ds_vals.append(mean_ds)
+            sr_vals.append(mean_sr)
+    # Reassign in original order (grp iteration was per-subject, need to map back)
+    out = out.sort_values(["subject_id", "epoch_num"]).reset_index(drop=True)
+    out["avg_accuracy_until_now_digit_span"] = ds_vals
+    out["avg_accuracy_until_now_spatial_recall"] = sr_vals
     return out
 
 
@@ -204,8 +238,9 @@ def add_history_features(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def get_feature_columns(baseline_only: bool = False) -> List[str]:
-    """Column names to use as model features. baseline_only=False adds history columns."""
+def get_feature_columns(baseline_only: bool = False, include_dataset: bool = False) -> List[str]:
+    """Column names to use as model features. baseline_only=False adds history columns.
+    include_dataset=True adds dataset_replication (use only for pooled split)."""
     # cue_transition_type 3-level dummies (stay_within_block = reference)
     baseline = [
         "epoch_num",
@@ -219,8 +254,13 @@ def get_feature_columns(baseline_only: bool = False) -> List[str]:
         "game_type_spatial_recall",
         "cue_stay_between_block",
         "cue_switch_between_block",
+        "rests_taken_so_far",
         "mean_rest_length_subj",
+        "avg_accuracy_until_now_digit_span",
+        "avg_accuracy_until_now_spatial_recall",
     ]
+    if include_dataset:
+        baseline = baseline + ["dataset_replication"]
     if baseline_only:
         return baseline
     return baseline + [
@@ -229,12 +269,15 @@ def get_feature_columns(baseline_only: bool = False) -> List[str]:
         "rt_prev",
         "game_type_digit_span_prev",
         "game_type_spatial_recall_prev",
+        "previous_cue_stay_between_block",
+        "previous_cue_switch_between_block",
     ]
 
 
 def get_data() -> pd.DataFrame:
-    """Epoch table + baseline features + history features (for run_baselines and downstream)."""
+    """Epoch table + baseline features + cumulative accuracy by game + history features (for run_baselines and downstream)."""
     df = get_epoch_table()
     df = add_baseline_features(df)
+    df = add_cumulative_accuracy_by_game(df)
     df = add_history_features(df)
     return df
