@@ -345,12 +345,12 @@ def main() -> None:
         return f"{a.mean():.4f} ± {a.std():.4f}"
 
     parser = argparse.ArgumentParser(description="Run baseline fatigue prediction models (dataset + pooled splits)")
-    parser.add_argument("--n_folds", type=int, default=15, help="K-fold CV on training set (default 15)")
+    parser.add_argument("--n_folds", type=int, default=15, help="K-fold CV on training set (default 25)")
     parser.add_argument("--test_frac", type=float, default=0.1, help="Test fraction for pooled split (default 0.1 → 90/10)")
     parser.add_argument("--alphas", type=str, default="0.01,0.05,0.1,0.5,1,10,20,100", help="Comma-separated alphas for Ridge tuning")
-    parser.add_argument("--gbm-n-estimators", type=str, default="100,200,500", help="Comma-separated n_estimators for GBM tune")
-    parser.add_argument("--gbm-max-depth", type=str, default="2,3,4", help="Comma-separated max_depth for GBM tune")
-    parser.add_argument("--gbm-learning-rate", type=float, default=0.1, help="GBM learning rate for tuning")
+    parser.add_argument("--gbm-n-estimators", type=str, default="100,200,300,400,500", help="Comma-separated n_estimators for GBM tune")
+    parser.add_argument("--gbm-max-depth", type=str, default="1,2,3,4", help="Comma-separated max_depth for GBM tune")
+    parser.add_argument("--gbm-learning-rate", type=float, default=0.05, help="GBM learning rate for tuning")
     parser.add_argument("--gbm-final-squeeze", action="store_true", help="Final model: LR=0.01 and 2x trees for 'final squeeze'")
     parser.add_argument("--gbm-no-early-stopping", action="store_true", help="Disable GBM early stopping")
     parser.add_argument("--no-scale", action="store_true", help="Don't standardize features for Ridge (not recommended)")
